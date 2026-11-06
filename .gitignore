@@ -1,0 +1,13 @@
+# 本地产物
+.DS_Store
+node_modules/
+
+# 预览截图与生成图（不入库）
+preview-*.png
+cover-*.png
+*-preview-*.png
+
+# 草稿正文按批次另行同步，仓库只留模板与范例
+drafts/*.body.txt
+!drafts/body.template.txt
+!drafts/11-cuba-libre.body.txt
