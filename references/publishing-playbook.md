@@ -22,14 +22,28 @@ curl -sS http://127.0.0.1:9222/json/version
 连不上（`Failed to connect`）说明当前 Chrome 不是调试模式启动。让用户**完全退出 Chrome**（⌘Q，不是关窗口），然后：
 
 ```bash
+# macOS
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --remote-debugging-port=9222
+
+# Linux
+google-chrome --remote-debugging-port=9222
 ```
 
 登录态会保留。
 
-> 端口号由 Chrome 自己写进 `~/Library/Application Support/Google/Chrome/DevToolsActivePort`。
-> `cdp.mjs` 读这个文件拿到真实的端口和 WebSocket 路径，所以即便端口不是 9222 也能连上。
+> 脚本**不会**去读浏览器配置文件目录来猜端口 —— 端口只从环境变量取：
+>
+> | 变量 | 作用 | 优先级 |
+> |---|---|---|
+> | `CDP_WS_URL` | 完整的浏览器 WebSocket URL | 最高 |
+> | `CDP_PORT` | TCP 端口，默认 `9222` | 次之 |
+>
+> 端口号必须与 Chrome 启动时的 `--remote-debugging-port` 一致。若 Chrome 用了别的端口，启动脚本时带上：
+>
+> ```bash
+> CDP_PORT=9333 node scripts/cdp.mjs targets
+> ```
 
 **不要在用户不知情的情况下强杀浏览器** —— 会有未保存的工作。
 

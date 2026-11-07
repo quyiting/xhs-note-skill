@@ -1,10 +1,30 @@
+#!/usr/bin/env node
 // Add XHS topic chips to the caret position in the tiptap editor.
-// Usage: node topics.mjs <targetId> <topic1@x,y?> ... (topic names; coordinates resolved automatically)
-import fs from "node:fs";
+//
+// Usage: node topics.mjs <targetId> <topic1> <topic2> ...
+// Topic names are resolved against the editor's own suggestion dropdown, so a
+// topic is only inserted when the platform actually offers it.
+//
+// Connects to a Chrome started with --remote-debugging-port=<port>.
+// Endpoint resolution (no reads outside the project directory):
+//   1. $CDP_WS_URL   -> full browser WebSocket URL
+//   2. $CDP_PORT     -> TCP port, default 9222
+//
+// Network scope: connects ONLY to 127.0.0.1 on the local debugging port.
+const HOST = "127.0.0.1";
+const PORT = process.env.CDP_PORT || "9222";
 
-const p = `${process.env.HOME}/Library/Application Support/Google/Chrome/DevToolsActivePort`;
-const [port, wsPath] = fs.readFileSync(p, "utf8").trim().split("\n");
-const ws = new WebSocket(`ws://127.0.0.1:${port.trim()}${wsPath.trim()}`);
+async function resolveWsUrl() {
+  if (process.env.CDP_WS_URL) return process.env.CDP_WS_URL;
+  const res = await fetch(`http://${HOST}:${PORT}/json/version`);
+  if (!res.ok) throw new Error(`cannot reach Chrome DevTools on ${HOST}:${PORT} (HTTP ${res.status})`);
+  const info = await res.json();
+  if (!info.webSocketDebuggerUrl) throw new Error("no webSocketDebuggerUrl in /json/version");
+  return info.webSocketDebuggerUrl;
+}
+
+const wsUrl = await resolveWsUrl();
+const ws = new WebSocket(wsUrl);
 
 const TID = process.argv[2];
 const wanted = process.argv.slice(3);

@@ -1,13 +1,15 @@
 ---
 name: xhs-note
-description: "End-to-end 小红书 (Xiaohongshu / RED) note production for the 家庭小酒馆 cocktail handbook account — copy formulas (title / cover headline / body), cover-illustration prompt templates, body draft files, and browser-driven fill-and-publish on 创作服务平台 via CDP. Use when the user asks to 写小红书笔记, 改小红书标题, 做小红书封面, 出一批单杯笔记, 填小红书草稿, or publish a 调酒 note to RED."
+description: "Use when the user asks to write, rewrite, or schedule a Xiaohongshu (小红书 / RED / Little Red Book) post — including requests to 写小红书笔记, 改小红书标题, 做小红书封面, 出笔记文案, fill a RED draft, or publish to creator.xiaohongshu.com. Produces a click-tested title, a thumbnail-readable cover headline, a structured body, an AI image prompt for the cover, and optionally drives the creator platform through Chrome DevTools Protocol. Trigger phrases: xiaohongshu note, red note, 小红书, 小红书文案, 小红书标题, 小红书封面, RED post, creator platform."
 ---
 
-# 小红书笔记生产流水线 · 家庭小酒馆
+# 小红书笔记生产流水线 · Xiaohongshu Note Pipeline
 
 一套可复用的流程：从**一句卖点**产出**标题 + 封面方案 + 正文 + 配图提示词**，再通过 CDP 驱动用户已登录的 Chrome，把内容填进小红书创作服务平台。
 
-账号背景：**家庭小酒馆**，一个 20 篇系列的家庭调酒图文账号，视觉语言为「暖奶油纸底 + 深橄榄字 + 酒红数字 + 细墨线 + 大量留白」的插画图鉴风。
+本 skill 的方法论来自「家庭小酒馆」账号 —— 一个 20 篇系列的家庭调酒图文账号，视觉语言为「暖奶油纸底 + 深橄榄字 + 酒红数字 + 细墨线 + 大量留白」的插画图鉴风。**方法论通用**（标题公式、封面三段式、批次编排、合规红线），但不必是调酒内容：把「配方」换成任何主题的**可验证具体点**即可复用。
+
+> **零假设**：使用者不需要小红书账号就能用本 skill 的阶段一～三（内容生产）。只有阶段四（填稿发布）需要已登录的 Chrome，且默认不执行。
 
 ---
 
@@ -252,11 +254,16 @@ Constraints: no logos, no branded bottles, no people, no price, no ABV numbers, 
    连不上就要让用户**完全退出 Chrome** 后，用调试端口重启：
 
    ```bash
+   # macOS
    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
      --remote-debugging-port=9222
+   # Linux
+   google-chrome --remote-debugging-port=9222
    ```
 
    登录态会保留。不要在用户不知情的情况下强杀浏览器。
+
+   脚本只从环境变量读端口（`CDP_WS_URL` 优先，其次 `CDP_PORT`，默认 `9222`），**不读取浏览器配置文件目录**。端口不同时用 `CDP_PORT=9333 node scripts/cdp.mjs targets`。
 
 2. 用户已在 Chrome 里登录小红书创作服务平台。
 
@@ -351,7 +358,7 @@ node scripts/cdp.mjs shot /abs/path/to/preview-NN-slug.png
 | 标题被削 | 发布后变成「调酒｜酒名」 | 填稿后截图核对；首图大字也承担卖点 |
 | 首图塞太多 | 缩略图里读不出字 | 首图只留大字 + 酒名 + 角标 |
 | 标签没生效 | 正文里是裸 `#家庭小酒馆` | 用 `topics.mjs` 点候选，不用手打 |
-| Chrome 连不上 | `curl 9222` 连接被拒 | 完全退出 Chrome 后带 `--remote-debugging-port=9222` 重启 |
+| Chrome 连不上 | `curl 9222` 连接被拒 | 完全退出 Chrome 后带 `--remote-debugging-port=9222` 重启；端口不同则 `CDP_PORT=xxxx` |
 | 话题不在候选 | 输出 `SKIP (not offered)` | 换一个更热门的同义词，不要伪造 |
 | 配图上传无效 | 控件不是 `input[type=file]` | 先 `eval` 打印所有 `input[type=file]` 的 outerHTML 定位 |
 | 编辑器残留裸 `#` | 段落末尾有 `#` | `topics.mjs` 已内置清理；若手动插入需自行处理 |
