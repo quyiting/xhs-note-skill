@@ -1,216 +1,213 @@
 # xhs-note — Xiaohongshu (小红书 / RED) Note Pipeline
 
-A reusable pipeline that turns **one verifiable concrete point** into a complete Xiaohongshu post — title, cover headline, body, and AI image prompts — and can optionally fill it into the creator platform through the Chrome DevTools Protocol.
+**English** · [简体中文](README.zh-CN.md)
 
-**Any niche works.** Food, efficiency tools, travel packing, study methods, skincare, code — the method (title formulas, three-layer cover, body skeleton, batch planning, compliance rules) is topic-independent. Everything topic-specific lives in a single **account profile**: series name, visual language, body labels, fixed disclosure, banned phrasing, KPI baseline, topic pool.
+Turn **one verifiable concrete point** into a finished Xiaohongshu post — title, cover, body, images — and optionally stage it as a draft in the creator platform over the Chrome DevTools Protocol.
 
-## How it generalizes
+Built for any niche. Ships with worked profiles for cocktails, home cooking, productivity tools, travel packing, and fashion.
 
-| Layer | Topic-independent? | Where it lives |
+---
+
+## Why this exists
+
+Most "AI writes your 小红书" tools produce text that reads like an ad. The posts that actually get saved have one thing in common: **they teach you one specific thing you'd otherwise get wrong** — a ratio, an order of operations, a material you'd buy by mistake.
+
+So the pipeline has exactly one non-negotiable rule:
+
+> Every note carries **one verifiable concrete point** — something you can check with a ruler, a source, or two comparison photos.
+
+Everything else (length, tone, cover style, posting schedule) is negotiable.
+
+---
+
+## The one decision that matters
+
+Before writing a word, decide **what is the subject of the photo**:
+
+| Subject | Example | May AI generate it? |
 |---|---|---|
-| Title formulas, sentence-pattern mix | ✅ always | `references/title-formulas.md` |
-| Cover: object-vs-person rule, bare-photo or infographic | ✅ always | `references/cover-spec.md` |
-| Body skeleton (hook → key points → how-to → pitfall → question → disclosure) | ✅ always | `SKILL.md` |
-| Batch waves, A/B method, attribution | ✅ always | `references/batch-playbook.md` |
-| CDP fill & publish | ✅ always | `references/publishing-playbook.md` |
-| Series name, palette, body labels, fixed disclosure, bans, KPI | ❌ per account | **`references/account-profile.md`** |
+| **Thing** | a drink, a dish, a flat-lay outfit, a tool, a product | ✅ yes — and it should look like a phone photo |
+| **Person** | outfit worn on a body, makeup on a face, workout form | ❌ no — must be shot for real |
+| **Mixed** | outfit (worn + flat-lay), beauty (face + product) | ⚠️ split: shoot the person, generate the object |
+
+A pipeline that skips this question will cheerfully generate an AI model wearing clothes. The audience spots it instantly, because the entire value of that content is *this real body in these real clothes*.
+
+This single field (`visual.subject`) drives the cover strategy, the prompt template, and whether generation is allowed at all.
+
+---
+
+## Two cover strategies
+
+| | `photo` (default) | `infographic` (on demand) |
+|---|---|---|
+| What it is | one lived-in photo, **zero text on the image** | illustrated card with a short headline |
+| Wording lives in | the title | the image + the title |
+| Good for | most notes; the lightest "AI smell" | atlases, checklists, parameter comparisons |
+| Rule | subject = thing only | text must be rendered by a layout tool, never by the image model |
+
+The reason for zero text: AI-written characters are the first thing readers notice, and any text burned into the image has to be redone when you change the title.
+
+---
 
 ## What it covers
 
 | Stage | Deliverable |
 |---|---|
-| 0 · Scope | Confirm which notes, whether to fill or publish, what's already live; load or create the account profile |
-| 1 · Copy | Point selection (4 types), title formula (4 sentence patterns + mix ratio), cover three-layer structure, body skeleton, per-note deliverable list |
-| 2 · Images | **Object-vs-person rule** (decides whether AI may generate), bare-photo prompt template, infographic template, image API script, cost discipline |
-| 3 · Batch | Sentence-pattern mix, three release waves, A/B method, KPI review and attribution |
-| 4 · Fill & publish | CDP fill, draft CRUD (list / open / delete / rebuild / verify), topic chips, the 7 platform traps, publish boundary |
-| 5 · Compliance | Fixed disclosure from the profile, general + per-domain red lines, unit-precision rules |
+| **0 · Scope** | Which notes, fill vs. publish, what's already live; load or create the account profile |
+| **1 · Copy** | Point selection (4 types), title formula (4 sentence patterns + mix), body skeleton, per-note checklist |
+| **2 · Images** | Object-vs-person rule, bare-photo prompt template, infographic template, generation script, cost discipline |
+| **3 · Batch** | Sentence-pattern mix, release waves, A/B method, KPI review and attribution |
+| **4 · Fill** | CDP fill, draft CRUD (list / open / delete / rebuild / verify), topic chips, the 7 platform traps |
+| **5 · Compliance** | Fixed disclosure, general + per-domain red lines, unit-precision rules |
+
+Present in all stages: the **account profile** — the only niche-specific input. Series name, palette, body labels, fixed disclosure, banned claims, KPI baseline, topic pool.
+
+---
+
+## Quick start
+
+### 1. Content only — no install, no account, no network
+
+```
+1. Write an account profile   (references/account-profile.md — 6 fields is enough to start)
+2. Pick a point               (4 questions, all must be "yes")
+3. Title                      {subject}｜{specific point}, ≤20 chars, one sentence pattern
+4. Cover                      subject = thing? shoot/generate a photo. person? shoot for real.
+5. Body                       hook → key points → how-to → pitfall → question → disclosure
+6. Images                     template in references/cover-spec.md, one subject per image
+```
+
+### 2. Generate the cover
+
+```bash
+export MINIMAX_API_KEY=sk-...            # never committed
+
+python3 scripts/genimg.py --prompt-file prompts/12.txt \
+  --out assets/12-gin-fizz-src.jpg       # 864×1152, already 3:4, no watermark
+python3 scripts/plain.py \
+  --photo assets/12-gin-fizz-src.jpg \
+  --out  assets/12-gin-fizz-cover.jpg    # crop to 1242×1656, still zero text
+```
+
+Any provider works — swap `call()` in `genimg.py`. The cost rule: **render one sample, get it approved, then batch**; align filenames before batching, or you pay twice.
+
+### 3. Stage it as a draft
+
+```bash
+node scripts/cdp.mjs targets
+node scripts/cdp.mjs open "https://creator.xiaohongshu.com/publish/publish?source=official"
+
+node scripts/fillnote.mjs  <targetId> assets/12-gin-fizz-cover.jpg drafts/12-gin-fizz.body.txt "金菲士｜摇完把冰滤掉才对"
+node scripts/addtopic.mjs  <targetId> 调酒 家庭调酒 金菲士 金酒 气泡酒
+node scripts/click.mjs     <targetId> "暂存离开"        # never "发布"
+```
+
+Nothing in this repo clicks **发布**. Publishing is always a human action.
+
+---
 
 ## Requirements
 
-**Stages 1–3 need nothing.** No account, no install, no network. That's where most of the value is.
+| Stages | Needs |
+|---|---|
+| 1–3 (content, prompts, planning) | nothing — no account, no install, no network |
+| 2 (image generation) | Python 3 + Pillow + a provider API key |
+| 4 (fill the platform) | Node 18+, a Chrome already logged into Xiaohongshu, started with a debugging port |
 
-**Stage 4 needs:** Node 18+, a Chrome you have already logged into Xiaohongshu with, and Chrome started with a debugging port.
+### Starting Chrome with a debugging port
+
+**Chrome 136+ refuses to open a debugging port on the default profile.** Use a dedicated directory:
 
 ```bash
-# macOS — quit Chrome first (⌘Q), then:
+# macOS
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --user-data-dir="$HOME/Library/Application Support/Chrome-Automation" \
   --remote-debugging-port=9222
 
 # Linux
-google-chrome --remote-debugging-port=9222
+google-chrome --user-data-dir="$HOME/.chrome-automation" --remote-debugging-port=9222
 ```
 
-Your login survives. The scripts read the port from the environment only:
+A fresh directory has no login. To keep it, copy these from your default profile (~30 MB, not the whole 3 GB):
 
-| Variable | Purpose | Priority |
+```
+Cookies  Local Storage/  Session Storage/  Preferences  "Local State"
+```
+
+Scripts read the endpoint from the environment only — `CDP_WS_URL` → `CDP_PORT` → discovery file.
+
+---
+
+## The 7 platform traps
+
+The creator platform is a SPA with custom elements: **what you can query, you often can't click; what you can click, you often can't query.** Each of these cost real debugging time:
+
+| Symptom | Cause | Fix |
 |---|---|---|
-| `CDP_WS_URL` | full browser WebSocket URL | highest |
-| `CDP_PORT` | TCP port, default `9222` | next |
+| Publish bar / draft drawer invisible to `querySelectorAll` | rendered by a custom element | go through the accessibility tree (`Accessibility.getFullAXTree` → `DOM.getBoxModel`) |
+| Drawer says "no drafts" while the tab shows 15 | defaults to the video tab | click the `图文笔记` tab |
+| Drawer sits off-screen at x=2388 with a 1920 viewport | slide-in animation stalled at `translateX(600px)` | clear `drawer-slide-right-enter-*`, set `transform: translateX(0)` |
+| Delete button does nothing | it opens a Popconfirm on **click**, not hover | click once, then click `删除` in the popover |
+| Delete button unreachable | card is below the fold | `scrollIntoView({block:'center'})` first |
+| Topic becomes plain `#text` | typing a string doesn't convert it | type `#word` + `Enter`, or pick from the dropdown |
+| Topics vanish after editing | rewriting a paragraph drops its topic nodes | edit body first, add topics last |
 
-```bash
-CDP_PORT=9333 node scripts/cdp.mjs targets
-```
+---
 
-## Install
+## Scripts
 
-Unzip into your agent's skills directory (e.g. `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/`):
+| Script | Purpose |
+|---|---|
+| `lib.mjs` | shared CDP helpers (AX-tree, drawer, editor) |
+| `cdp.mjs` | base driver: `targets` / `open` / `evalon` / `shot` / `type` / `typefile` / `upload` |
+| `fillnote.mjs` | create a note: image + title + body |
+| `addtopic.mjs` | insert real topic links |
+| `listdrafts.mjs` | list drafts |
+| `editdraft.mjs` | open a draft |
+| `deletedraft.mjs` | delete a draft (with confirmation) |
+| `rebuild.mjs` | delete + recreate — the only way to swap a cover |
+| `verifydrafts.mjs` | check title / image count / paragraphs / topics |
+| `setpara.mjs` | rewrite a paragraph by index |
+| `click.mjs` | click by accessible name (the publish bar needs this) |
+| `topics.mjs` | topic chips via the dropdown |
+| `genimg.py` | image generation |
+| `plain.py` | crop to 3:4, no text |
+| `placeholder.py` | grey placeholder cover |
+
+---
+
+## Repo layout
 
 ```
 xhs-note/
-├── SKILL.md
-├── README.md
-├── LICENSE
-├── agents/openai.yaml
+├── SKILL.md                      # the method (stages, rules, checklists)
 ├── references/
-│   ├── account-profile.md        # profile spec: fields, minimal profile, blank template
-│   ├── title-formulas.md         # title formula + sentence patterns + cross-niche rewrites
-│   ├── cover-spec.md             # object-vs-person rule, photo/infographic covers
-│   ├── publishing-playbook.md    # CDP manual, draft CRUD, the 7 platform traps
-│   ├── batch-playbook.md         # batch planning, release waves, KPI review
+│   ├── account-profile.md        # profile spec — the only niche-specific input
+│   ├── title-formulas.md         # title formula, sentence patterns, rewrites
+│   ├── cover-spec.md             # object-vs-person, photo/infographic covers
+│   ├── publishing-playbook.md    # CDP manual, draft CRUD, the 7 traps
+│   ├── batch-playbook.md         # waves, A/B method, KPI review
 │   └── compliance.md             # fixed disclosure, red lines, unit rules
 ├── examples/
-│   ├── cocktail-series.md        # worked case: object subject, fully automatable
-│   └── topic-profiles.md         # profiles: cooking / tools / travel / fashion (person)
-├── scripts/
-│   ├── lib.mjs                   # shared CDP helpers (AX-tree, drawer, editor)
-│   ├── cdp.mjs                   # CDP driver (eval / shot / open / type)
-│   ├── genimg.py                 # MiniMax image API
-│   ├── plain.py                  # crop to 3:4, no text
-│   ├── placeholder.py            # grey placeholder cover
-│   ├── fillnote.mjs              # image + title + body
-│   ├── addtopic.mjs              # real topic links
-│   ├── listdrafts.mjs            # list drafts
-│   ├── editdraft.mjs             # open a draft
-│   ├── deletedraft.mjs           # delete a draft
-│   ├── rebuild.mjs               # delete + recreate (swap cover)
-│   ├── verifydrafts.mjs          # check title / images / paras / topics
-│   ├── setpara.mjs               # rewrite a paragraph by index
-│   ├── click.mjs                 # click by accessible name
-│   └── topics.mjs                # topic chips via dropdown
+│   ├── cocktail-series.md        # thing subject — fully automatable
+│   └── topic-profiles.md         # cooking / tools / travel / fashion (person)
+├── scripts/                      # everything above
 └── drafts/
-    ├── body.template.txt         # body skeleton to copy
-    └── 11-cuba-libre.body.txt    # worked example
+    ├── body.template.txt
+    └── 11-cuba-libre.body.txt
 ```
 
-## The one decision that matters most
+---
 
-Who — or what — is the subject of the photo?
+## Boundaries
 
-| Subject | Example | May AI generate it? |
-|---|---|---|
-| **Thing** | a drink, a dish, a flat-lay outfit, a tool, a product | ✅ yes |
-| **Person** | worn-on-body outfit, makeup on a face, workout form | ❌ no — must be shot for real |
-| **Mixed** | outfit (worn + flat-lay), beauty (face + product) | ⚠️ split: shoot the person, generate the object |
+- **Never publish on your own.** Drafts only; the human clicks publish.
+- **Never edit published notes** without explicit permission.
+- **Never invent a spec.** No unverified taste claims, no health effects, no prices, no absolute superlatives.
+- **Disclose AI images** in the fixed footer, in the account's own wording.
 
-A pipeline that ignores this will happily produce an AI model wearing clothes — and the audience spots it instantly, because the whole value of that content is *this real body in these real clothes*.
-
-Everything downstream (`image_mode`, prompt template, whether generation is allowed at all) hangs off this one field.
-
-## Quick start — content only
-
-```
-1. 建账号档案（references/account-profile.md，最小 6 个字段）
-2. 选题：一个可验证具体点，四问全「是」才动笔
-3. 标题：{点名}｜{具体点}，≤20 字，本篇只用一种句式
-4. 封面：先判断主体是物还是人；物→生成生活感照片（图上 0 字），人→必须实拍
-5. 正文：开场反转 → 要点清单 → 三步做法 → 易错提示 → 二选一提问 → 固定声明
-6. 配图提示词：套 cover-spec.md 的模板，角标与大字逐字核对
-```
-
-## Quick start — fill and publish
-
-```bash
-# 1) find the creator-platform page
-node scripts/cdp.mjs targets
-
-# 2) open the publish page, get a targetId
-node scripts/cdp.mjs open "https://creator.xiaohongshu.com/publish/publish"
-
-# 3) set the title (React-controlled input — use setvalue, not type)
-node scripts/cdp.mjs setvalue "input[placeholder*='标题']" "自由古巴｜只倒朗姆和可乐就错了"
-
-# 4) fill the body (tiptap editor, line by line)
-node scripts/cdp.mjs typefile "div.tiptap.ProseMirror" drafts/11-cuba-libre.body.txt
-
-# 5) upload covers (several files in one call)
-node scripts/cdp.mjs upload "input[type=file]" cover-01.png cover-02.png cover-03.png
-
-# 6) insert topic chips (goes through the real suggestion dropdown)
-node scripts/topics.mjs <targetId> "家庭小酒馆" "调酒" "鸡尾酒"
-
-# 7) screenshot and verify
-node scripts/cdp.mjs shot preview.png
-```
-
-Full command table and selector reference: `references/publishing-playbook.md`.
-
-## Images
-
-Default is a **bare photo with no text on it** — all wording goes in the title.
-Generation goes through `scripts/genimg.py` (MiniMax; swap `call()` for another provider):
-
-```bash
-export MINIMAX_API_KEY=sk-...        # never commit
-python3 scripts/genimg.py --prompt-file prompts/12.txt --out assets/12-gin-fizz-src.jpg
-python3 scripts/plain.py --photo assets/12-gin-fizz-src.jpg --out assets/12-gin-fizz-cover.jpg
-```
-
-Cost discipline: render **one** sample, get it approved, then batch. Align filenames
-before batching (`{id}-{name}-src/cover`) — a mismatch means paying twice.
-
-## Draft management
-
-```bash
-node scripts/listdrafts.mjs   <targetId>
-node scripts/editdraft.mjs    <targetId> "标题"
-node scripts/deletedraft.mjs  <targetId> "标题"
-node scripts/rebuild.mjs      <targetId> drafts/rebuild-spec.txt --root .
-node scripts/verifydrafts.mjs <targetId> "标题1" "标题2"
-```
-
-`rebuild` spec lines: `slug|标题|话题1,话题2`.
-
-Nothing in this repo clicks 发布. Publishing is always a human action.
-
-### cdp.mjs commands
-
-| Command | Purpose |
-|---|---|
-| `targets` | list page targets (type / id / title / URL) |
-| `open <url>` | open a tab, print the new targetId |
-| `close <targetId>` | close a tab |
-| `eval "<js>"` | evaluate JS in the page matching `creator.xiaohongshu.com` |
-| `evalon <targetId> "<js>"` | evaluate JS in a specific target |
-| `shot <out.png>` | screenshot the creator page |
-| `upload <selector> <file...>` | set one or more files on `<input type=file>` |
-| `files` | list every `<input type=file>` (locate the uploader) |
-| `setvalue <selector> <text>` | set a React-controlled input value + fire `input` |
-| `type <selector> <text>` | focus and type a single line |
-| `typefile <selector> <path>` | type a text file line by line (`\n` = Enter) |
-| `focusend <selector>` | move the caret to the end of an element |
-| `insert <selector> <text>` | insert text at the end of an element |
-| `key <Enter\|Tab\|Backspace>` | send a key |
-| `wait <ms>` | sleep |
-
-## Three hard boundaries
-
-1. **Never publish on your own.** Publish only when the user explicitly says so; otherwise stop at "save draft". Publishing is irreversible and goes straight to review.
-2. **Never fake a topic chip.** If the platform doesn't offer it, use a synonym or skip it.
-3. **Never rewrite the profile's fixed disclosure.** The image footer and body footer are copied verbatim from the account profile.
-
-## Security notes
-
-Both scripts:
-
-- connect **only** to `127.0.0.1` on the debugging port — no external network calls, no runtime downloads;
-- read **only** the paths passed as arguments, plus the two environment variables above;
-- never write outside the paths given as arguments;
-- contain no credentials, tokens, or encoded blobs;
-- are plain, commented, auditable JavaScript.
-
-`cdp.mjs` never inspects the browser profile directory. It asks Chrome's own `/json/version` endpoint for the WebSocket URL.
+---
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
