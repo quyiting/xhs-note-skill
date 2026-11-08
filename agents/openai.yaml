@@ -1,4 +1,4 @@
 interface:
-  display_name: "小红书笔记流水线 · 家庭小酒馆"
-  short_description: "从一句卖点产出小红书调酒笔记的标题、封面方案、正文与生图提示词，并用 CDP 把草稿填进创作服务平台"
-  default_prompt: "Use $xhs-note to produce a 家庭小酒馆 cocktail note — title, cover headline, body, and image prompts — then optionally fill it into the Xiaohongshu creator platform via CDP."
+  display_name: "小红书笔记流水线（通用）"
+  short_description: "从一句卖点产出小红书图文笔记：标题、首图方案、正文、生图提示词，并用 CDP 把草稿填进创作服务平台。支持任意赛道。"
+  default_prompt: "Use $xhs-note to produce a Xiaohongshu note (title, cover, body, image prompts) for any niche, then optionally fill it into the creator platform as a draft via CDP. Never publish without explicit confirmation."

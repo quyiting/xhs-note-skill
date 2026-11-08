@@ -1,13 +1,23 @@
-# 本地产物
+# local artifacts
 .DS_Store
 node_modules/
 
-# 预览截图与生成图（不入库）
+# generated / preview assets — never commit images or account exports
+assets/
 preview-*.png
 cover-*.png
 *-preview-*.png
+*.zip
 
-# 草稿正文按批次另行同步，仓库只留模板与范例
+# draft bodies are per-batch; the repo keeps only the template + one example
 drafts/*.body.txt
 !drafts/body.template.txt
 !drafts/11-cuba-libre.body.txt
+
+# never commit credentials
+.env
+*.key
+
+# python cache
+__pycache__/
+*.pyc

@@ -70,22 +70,22 @@ node scripts/cdp.mjs open "https://creator.xiaohongshu.com/publish/publish"
 # 3) 先探一下标题框和正文编辑器的选择器（结构会随平台改版变化）
 node scripts/cdp.mjs evalon <targetId> "JSON.stringify([...document.querySelectorAll('input,textarea,[contenteditable=true]')].map(e=>({tag:e.tagName,ph:e.placeholder||'',cls:e.className||''})))"
 
-# 4) 填标题
-node scripts/cdp.mjs evalon <targetId> "(()=>{const e=document.querySelector('input[placeholder*=\"标题\"]');if(!e)return 'NOT_FOUND';const s=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;s.call(e,'自由古巴｜只倒朗姆和可乐就错了');e.dispatchEvent(new Event('input',{bubbles:true}));return 'OK';})()"
+# 4) 填标题（React 受控输入框，用 setvalue 而不是 type）
+node scripts/cdp.mjs setvalue "input[placeholder*='标题']" "番茄炒蛋｜先炒蛋才是真的嫩"
 
 # 5) 填正文（tiptap 富文本，按行插入，空行跳过）
-node scripts/cdp.mjs typefile <targetId> "div.tiptap.ProseMirror" drafts/11-cuba-libre.body.txt
+node scripts/cdp.mjs typefile "div.tiptap.ProseMirror" drafts/NN-slug.body.txt
 
 # 6) 上传配图
-node scripts/cdp.mjs upload "input[type=file]" /abs/path/cover-11-01.png
-node scripts/cdp.mjs upload "input[type=file]" /abs/path/cover-11-02.png
-node scripts/cdp.mjs upload "input[type=file]" /abs/path/cover-11-03.png
+node scripts/cdp.mjs upload "input[type=file]" /abs/path/cover-NN-01.png
+node scripts/cdp.mjs upload "input[type=file]" /abs/path/cover-NN-02.png
+node scripts/cdp.mjs upload "input[type=file]" /abs/path/cover-NN-03.png
 
-# 7) 插入话题标签
-node scripts/topics.mjs <targetId> "家庭小酒馆" "调酒" "鸡尾酒" "自制冷饮"
+# 7) 插入话题标签（从账号档案的 topics 池里挑）
+node scripts/topics.mjs <targetId> "快手菜" "家常菜" "10分钟晚餐"
 
 # 8) 截图自检
-node scripts/cdp.mjs shot /abs/path/preview-11-cuba-libre.png
+node scripts/cdp.mjs shot /abs/path/preview-NN-slug.png
 ```
 
 用 `read_image` 看截图。
@@ -102,7 +102,9 @@ node scripts/cdp.mjs shot /abs/path/preview-11-cuba-libre.png
 | `eval "<js>"` | 在匹配 `creator.xiaohongshu.com` 的页面里求值 |
 | `evalon <targetId> "<js>"` | 在指定 target 里求值 |
 | `shot <out.png>` | 截创作平台页面全屏 |
-| `upload <selector> <file>` | 给 `input[type=file]` 设置文件 |
+| `upload <selector> <file...>` | 给 `input[type=file]` 设置一个或多个文件 |
+| `files` | 列出所有 `input[type=file]`（定位上传控件） |
+| `setvalue <selector> <text>` | 设置 React 受控输入值并触发 `input` |
 | `type <selector> <text>` | 聚焦并输入文本（单行） |
 | `typefile <selector> <path>` | 按行输入文本文件（`\n` = 回车） |
 | `focusend <selector>` | 光标移到元素末尾 |
@@ -128,7 +130,7 @@ node scripts/cdp.mjs shot /abs/path/preview-11-cuba-libre.png
 
 ## 话题标签
 
-话题必须走编辑器下拉候选才会变成可点击的蓝色标签。**直接敲 `#家庭小酒馆` 只是普通文字。**
+话题必须走编辑器下拉候选才会变成可点击的蓝色标签。**直接敲 `#快手菜` 只是普通文字。**
 
 `topics.mjs` 的行为：
 
@@ -153,12 +155,12 @@ SKIP (not offered): #某个标签 | visible: ...
 
 填完必须截图核对：
 
-- [ ] 标题**没有**被截断成「调酒｜酒名」
-- [ ] 正文三段结构完整（配方 / 做法 / 记住这一点）
-- [ ] 首图是**封面页**（成品杯 + 大字卖点），不是配方卡
+- [ ] 标题**没有**被截断成零信息开头
+- [ ] 正文结构完整（要点清单 / 做法 / 易错提示 / 结尾提问 / 固定声明）
+- [ ] 首图是**封面页**（主体 + 大字卖点），不是要点卡
 - [ ] 图序正确，封面在第 1 位
 - [ ] 话题标签是蓝色可点击样式，不是裸 `#文字`
-- [ ] 合规声明在正文末尾
+- [ ] 固定声明在正文末尾
 
 ---
 
@@ -174,15 +176,49 @@ SKIP (not offered): #某个标签 | visible: ...
 
 ---
 
+## 草稿管理（增删查改）
+
+平台没有「换一张图」的接口，换图只能**删掉重建**。脚本封装好了：
+
+```bash
+node scripts/listdrafts.mjs   <targetId>                  # 列出全部草稿
+node scripts/editdraft.mjs    <targetId> "标题"            # 打开某篇
+node scripts/deletedraft.mjs  <targetId> "标题"            # 删除（自动确认）
+node scripts/rebuild.mjs      <targetId> spec.txt --root . # 删掉重建
+node scripts/verifydrafts.mjs <targetId> "标题1" "标题2"    # 逐篇核对
+```
+
+`rebuild` 的 spec 每行：`slug|标题|话题1,话题2`，对应
+`assets/<slug>-cover.jpg` 与 `drafts/<slug>.body.txt`。
+
+**重建前必须确认删除成功**，否则会得到「标题拼接两遍 + 正文翻倍 + 两张图」的脏草稿。
+`rebuild.mjs` 内置了保存前的 sanity check（标题必须精确相等、图必须 1 张），不通过就不保存。
+
+---
+
 ## 故障排查
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `curl 9222` 连接被拒 | Chrome 非调试模式启动 | 完全退出 Chrome，带 `--remote-debugging-port=9222` 重启 |
-| `no page matching creator.xiaohongshu.com` | 创作平台页没开 | 先 `open` 发布页 |
-| `selector not found` | 平台改版 | `eval` 打印所有 `input` / `[contenteditable]` 重新定位 |
+| `curl 9222` 连接被拒 | Chrome 非调试模式启动 | 退出 Chrome，带 `--remote-debugging-port=9222` 重启 |
+| 报错 `requires a non-default data directory` | Chrome 136+ 禁止默认 profile 开调试 | 加 `--user-data-dir=...` 用独立 profile |
+| 独立 profile 里没登录 | 新 profile 没有 cookie | 复制默认 profile 的 `Cookies` / `Local Storage` / `Session Storage` / `Preferences` / `Local State`（约 30MB） |
+| `no page matching creator.xiaohongshu.com` | 平台页没开 | 先 `open` 发布页 |
+| 发布 / 暂存按钮在 DOM 里找不到 | 自定义元素渲染 | 走无障碍树：`scripts/click.mjs` |
+| 草稿抽屉「暂无草稿」但标签写着 15 | 默认停在视频笔记页签 | 切到「图文笔记」（`lib.mjs` 已处理） |
+| 抽屉元素在屏幕外（坐标 > 视口） | 滑入动画卡在 `translateX(600px)` | 清 `drawer-slide-right-enter-*` 并设 `transform: translateX(0)` |
+| 删除按钮点了没反应 | 需要**点击**触发 Popconfirm | 点一下 → 等确认框 → 再点「删除」 |
+| 删除按钮点不到 | 卡片在视口外 | 先 `scrollIntoView({block:'center'})` |
+| 话题变裸 `#文字` | 直接插字符串不转换 | 打 `#词` + Enter，或点下拉候选 |
+| 改完正文话题没了 | 重写段落会清掉该段的话题节点 | **先改正文，最后插话题** |
+| `selector not found` | 平台改版 | `eval` 打印 `input` / `[contenteditable]` 重新定位 |
 | 正文打不进 | 编辑器不是 tiptap | `eval` 打印 `contenteditable` 元素列表 |
-| 图片上传无效 | 有多个 `input[type=file]` | `eval` 打印每个的 outerHTML 定位真正的那个 |
-| 标签不生效 | 绕过了候选流程 | 用 `topics.mjs`，不要手打 |
-| 段落末尾有裸 `#` | 标签插入后清理失败 | `topics.mjs` 已内置；手动插入需自行处理 |
-| 打字卡在输入框 | 焦点丢失 | 先 `focusend` 再 `type`/`typefile` |
+| 图片上传无效 | 有多个 `input[type=file]` | 分别在 `describeNode` 里看 `accept`，挑图片那个 |
+| 打字卡住 | 焦点丢失 | 先 focus 再 `type` / `typefile` |
+
+---
+
+## 一句话
+
+平台是 SPA + 自定义元素，**能查到的不一定能点，能点的查不到**。
+DOM 查不到就换无障碍树，鼠标点不到就换 DOM `click()`，两者都不行就看坐标是否在视口内。
